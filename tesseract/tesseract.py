@@ -53,5 +53,40 @@ DIMxDIMxDIM.
 """
 
 class Cube1():
-    def __init__(self):
+    def __init__(self,dim,thickness):
+        self.dim = dim
+        self.thickness = thickness
+        self.outer_dim = self.dim + (self.thickness / 2)
+        """
+        Need 6 pieces:
+        Bottom piece and Top Piece -
+          Dimension x:(DIM+(THICKNESS/2)),y:(DIM+(THICKNESS/2))
+        Two side pieces:
+          Dimension y:(DIM+(THICKNESS),z:DIM)
+        Two Front and back pieces:
+          Dimension x:DIM, y:DIM
+        """
+
+    def bottom(self):
+        """
+        Sketch from xy view
+        """
+        outer_dim = self.outer_dim
+        v1 = Base.Vector(0,0,0)
+        v2 = Base.Vector(outer_dim,0,0)
+        v3 = Base.Vector(outer_dim,outer_dim,0)
+        v4 = Base.Vector(0,outer_dim,0)
+
+        l1 = Part.Line(v1,v2)
+        l2 = Part.Line(v2,v3)
+        l3 = Part.Line(v3,v4)
+        l4 = Part.Line(v4,v1)
+
+        shape = Part.Shape([l1,l2,l3,l4])
+        wire = Part.Wire(shape.edges)
+        face = Part.makeFace(wire)
+        return face.extrude(Base.Vector(0,0,self.thickness))
+
+    def left_side(self):
+        
         
