@@ -54,6 +54,12 @@ as to compensate for the thickness, and to make the inner cube
 DIMxDIMxDIM.
 """
 
+## TO REFACTOR:
+# Have each object return a dict of name of part to shape
+# Create the outer pieces first
+# use those to cut into Cube 1 and Cube 2 pieces
+# iterate through all shapes to create shown doc parts.
+
 def add_shape(doc,name,shape):
     part = doc.addObject("Part::Feature", name)
     part.Shape = shape
