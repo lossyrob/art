@@ -409,16 +409,42 @@ class TopConnectors():
         ox = self.offsetX
         oy = self.offsetY
         oz = self.offsetZ
+        t = self.thickness
 
-        vs = [
-            Base.Vector(0,0,od),
-            Base.Vector(od,0,od),
-            Base.Vector(ox+od,oy,od+oz),
-            Base.Vector(ox,oy,od+oz),
-        ]
+        # Top of cube 1, inner space
+        vi1 = Base.Vector(0 + t,0 + t,od - t)
+        vi2 = Base.Vector(od - t,0 + t,od - t)
+        # Top of cube 2, inner space
+        vi3 = Base.Vector(ox + t,oy + t,od + oz - t)
+        vi4 = Base.Vector(od + ox - t,oy + t, od + oz - t)
 
-        face = get_face(*vs)
-        return face.extrude(Base.Vector(0,0,self.thickness))
+        # Top of cube 1, outer space
+        vo1 = Base.Vector(0, 0, od)
+        vo2 = Base.Vector(od, 0, od)
+        # Tope of cube 2, outer space
+        vo3 = Base.Vector(ox,oy,od + oz)
+        vo4 = Base.Vector(od + ox, oy, od + oz)
+
+        # Make the wires/faces
+
+        # Inner face
+        f1 = get_face(vi1,vi2,vi4,vi3)
+
+        # Outer face
+        f2 = get_face(vo1,vo2,vo4,vo3)
+
+        # Front and back
+        f3 = get_face(vi1,vi2,vo2,vo1)
+        f4 = get_face(vi3,vi4,vo4,vo3)
+
+        # Left and Right side
+        f5 = get_face(vi1,vo1,vo3,vi3)
+        f6 = get_face(vi2,vo2,vo4,vi4)
+
+        shell=Part.makeShell([f1,f2,f3,f4,f5,f6])
+        solid=Part.makeSolid(shell)
+
+        return solid
 
     def show(self, doc):
         add_shape(doc,"TopConnector_Front",self.front())
@@ -428,10 +454,34 @@ if __name__ == "__main__":
     doc = FreeCAD.newDocument()
     cube1 = Cube1(DIM,THICKNESS,OFFSET_X,OFFSET_Y,OFFSET_Z)
     cube2 = Cube2(DIM,THICKNESS,OFFSET_X,OFFSET_Y,OFFSET_Z)
+    top_connectors = TopConnectors(DIM,THICKNESS,OFFSET_X,OFFSET_Y,OFFSET_Z)
     cube1.show(doc)
     cube2.show(doc)
+    top_connectors.show(doc)
     FreeCADGui.SendMsgToActiveView("ViewFit")
     FreeCADGui.activeDocument().activeView().viewAxometric()
 
 
 # execfile("/home/rob/art/tesseract/tesseract.py")
+
+# Example of making solid out of vector->face->shell->solid
+         # Define six vetices for the shape
+         # v1 = FreeCAD.Vector(0,0,0)
+         # v2 = FreeCAD.Vector(fp.Length,0,0)
+         # v3 = FreeCAD.Vector(0,fp.Width,0)
+         # v4 = FreeCAD.Vector(fp.Length,fp.Width,0)
+         # v5 = FreeCAD.Vector(fp.Length/2,fp.Width/2,fp.Height/2)
+         # v6 = FreeCAD.Vector(fp.Length/2,fp.Width/2,-fp.Height/2)
+         
+         # # Make the wires/faces
+         # f1 = self.make_face(v1,v2,v5)
+         # f2 = self.make_face(v2,v4,v5)
+         # f3 = self.make_face(v4,v3,v5)
+         # f4 = self.make_face(v3,v1,v5)
+         # f5 = self.make_face(v2,v1,v6)
+         # f6 = self.make_face(v4,v2,v6)
+         # f7 = self.make_face(v3,v4,v6)
+         # f8 = self.make_face(v1,v3,v6)
+         # shell=Part.makeShell([f1,f2,f3,f4,f5,f6,f7,f8])
+         # solid=Part.makeSolid(shell)
+         # fp.Shape = solid
