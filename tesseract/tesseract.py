@@ -14,56 +14,102 @@ import FreeCADGui
 
 import math
 
+########## DEFINITIONS
+
 DIM = 1000 # in mm
 THICKNESS = 10
 OFFSET_X = DIM / 2
 OFFSET_Y = DIM / 2
 OFFSET_Z = DIM / 2
+OUTERDIM = DIM + (THICKNESS*2)
 
-"""
-The piece 'tesseract' will be a 3D projection of a tesseract,
-made of plexiglass. It will include two identical looking cubes
-of inner dimension DIM,
-offset in the Z and Y dimensions by some amount less than DIM,
-so that they intersect each other. This will require that the 
-cubes be made up of separate pieces of plexiglass so that
-the intersection is seemless and visually one piece.
+# Spell out each point in the lined tesseract
+# Number designates each cube: 1 is bottom cube, 2 is top cube
+# t = top, b = bottom, L = left, R = right, F = front, B = back
 
-The location of the bottom left front corner will be on the origin.
-This is facing the front side of the piece:
-The x direction moves to the right
-The y direction away from the viewer
-The z direction moves up
-The piece will move to the left with the bottom cube. The piece moves 
-to the right, with the 
-second cube (top cube, Cube 2) offset in the positive x, y, and z
-directions.
-"""
+# Rules for overlap:
+# Z: Top and bottom flair out along x and y, along with thickness in Z
+# X: left and right flair out along y, along with thickness in X
+# Y: front and back do not flair except for thickness in Y
 
-#### CUBE 1
-"""
-This is the cube is the one that rests on the floor. If possible,
-I want the piece to be freestanding, with Cube 2 raised and offset
-in the Y direction, but the weight balanced out by the weight of 
-Cube 1 such that it does not easily tip.
+# Cube 1 bottom
+LFb1 = Base.Vector(0,0,0)
+RFb1 = Base.Vector(DIM,0,0)
+LBb1 = Base.Vector(0,DIM,0)
+RBb1 = Base.Vector(DIM,DIM,0)
 
-This cube will be made of THICKESS thick plexiglass. It will
-contain 6 flat pieces of glass. A decision is to be made
-about which pieces will be larger than the DIMxDIM glass pieces
-as to compensate for the thickness, and to make the inner cube
-DIMxDIMxDIM.
-"""
+#Cube 1 top
+LFt1 = Base.Vector(0,0,DIM)
+RFt1 = Base.Vector(DIM,0,DIM)
+LBt1 = Base.Vector(0,DIM,DIM)
+RBt1 = Base.Vector(DIM,DIM,DIM)
 
-## TO REFACTOR:
-# Have each object return a dict of name of part to shape
-# Create the outer pieces first
-# use those to cut into Cube 1 and Cube 2 pieces
-# iterate through all shapes to create shown doc parts.
+#Cube 2 bottom
+LFb2 = Base.Vector(OFFSET_X,OFFSET_Y,OFFSET_Z)
+RFb2 = Base.Vector(OFFSET_X + DIM,OFFSET_Y,OFFSET_Z)
+LBb2 = Base.Vector(OFFSET_X,OFFSET_Y + DIM,OFFSET_Z)
+RBb2 = Base.Vector(OFFSET_X + DIM,OFFSET_Y + DIM,OFFSET_Z)
 
-def add_shape(doc,name,shape):
-    part = doc.addObject("Part::Feature", name)
-    part.Shape = shape
-    FreeCADGui.activeDocument().getObject(name).Transparency = 75
+#Cube 2 top
+LFt2 = Base.Vector(OFFSET_X,OFFSET_Y,OFFSET_Z + DIM)
+RFt2 = Base.Vector(OFFSET_X + DIM,OFFSET_Y,OFFSET_Z + DIM)
+LBt2 = Base.Vector(OFFSET_X,OFFSET_Y + DIM,OFFSET_Z + DIM)
+RBt2 = Base.Vector(OFFSET_X + DIM,OFFSET_Y + DIM,OFFSET_Z + DIM)
+
+########## UTIL
+
+class Piece():
+    @staticmethod
+    def fromFaces(name,faces):
+        shell = Part.makeShell(faces)
+        shape = Part.makeSolid(shell)
+        return Piece(name,shape)
+
+    def __init__(self,name,shape):
+        self.name = name
+        self.shape = shape
+
+    def cut(self,piece):
+        print "CUTTING %s WITH %s" % (self.name, piece.name)
+        return Piece(self.name,self.shape.cut(piece.shape))
+
+    def copy(self):
+        return Piece(self.name, self.shape.copy())
+
+def tX(d,v):
+    o = d * THICKNESS
+    return Base.Vector(v.x + o, v.y, v.z)
+
+def tY(d,v):
+    o = d * THICKNESS
+    return Base.Vector(v.x, v.y + o, v.z)
+
+def tZ(d,v):
+    o = d * THICKNESS
+    return Base.Vector(v.x, v.y, v.z + o)
+
+def tFront(v):
+    return tY(-1,v)
+
+def tBack(v):
+    return tY(1,v)
+
+def tLeft(v):
+    return tX(-1,v)
+
+def tRight(v):
+    return tX(1,v)
+
+def tBottom(v):
+    return tZ(-1,v)
+
+def tTop(v):
+    return tZ(1,v)
+
+def add_shape(doc,piece):
+    part = doc.addObject("Part::Feature", piece.name)
+    part.Shape = piece.shape
+    FreeCADGui.activeDocument().getObject(piece.name).Transparency = 75
 
 def get_face(*vs):
     """
@@ -81,413 +127,306 @@ def get_face(*vs):
     wire = Part.Wire(shape.Edges)
     return Part.makeFilledFace(shape.Edges)
 
+########## CUBES
 
-class Cube1():
-    def __init__(self,dim,thickness,offsetX,offsetY,offsetZ):
-        self.dim = dim
-        self.thickness = thickness
-        self.outer_dim = self.dim + (self.thickness / 2)
-        self.offsetX = offsetX
-        self.offsetY = offsetY
-        self.offsetZ = offsetZ
-        """
-        Need 6 pieces:
-        Bottom piece and Top Piece -
-          Dimension x:(DIM+(THICKNESS/2)),y:(DIM+(THICKNESS/2))
-        Two side pieces:
-          Dimension y:(DIM+(THICKNESS),z:DIM)
-        Two Front and back pieces:
-          Dimension x:DIM, y:DIM
-        """
+def makeTop(v):
+    return Part.makeBox(OUTERDIM,OUTERDIM,THICKNESS,tLeft(tFront(v)))    
 
-    def bottom(self):
-        """
-        Sketch from xy view
-        """
-        od = self.outer_dim
-        v1 = Base.Vector(0,0,0)
-        v2 = Base.Vector(od,0,0)
-        v3 = Base.Vector(od,od,0)
-        v4 = Base.Vector(0,od,0)
+def makeTop1():
+    shape = makeTop(LFt1)
+    return Piece("Top1",shape)
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(0,0,self.thickness))
+def makeTop2():
+    shape = makeTop(LFt2)
+    return Piece("Top2",shape)
 
-    def left_side(self):
-        od = self.outer_dim
-        t = self.thickness
-        v1 = Base.Vector(0,0,t)
-        v2 = Base.Vector(0,od,t)
-        v3 = Base.Vector(0,od,od-t)
-        v4 = Base.Vector(0,0,od-t)
+def makeFront(v):
+    return Part.makeBox(DIM,THICKNESS,DIM,tFront(v))    
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(self.thickness,0,0))
+def makeFront1():
+    shape = makeFront(LFb1)
+    return Piece("Front1",shape)
 
-    def right_side(self):
-        od = self.outer_dim
-        t = self.thickness
-        v1 = Base.Vector(od,0,t)
-        v2 = Base.Vector(od,od,t)
-        v3 = Base.Vector(od,od,od-t)
-        v4 = Base.Vector(od,0,od-t)
+def makeFront2():
+    shape = makeFront(LFb2)
+    return Piece("Front2",shape)
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(-self.thickness,0,0))
+def makeRight(v):
+    return Part.makeBox(THICKNESS,OUTERDIM,DIM,tFront(v))
+
+def makeRight1():
+    shape = makeRight(RFb1)
+    return Piece("Right2",shape)
+
+def makeRight2():
+    shape = makeRight(RFb2)
+    return Piece("Right2",shape)
+
+def makeLeft(v):
+    return Part.makeBox(THICKNESS,OUTERDIM,DIM,tLeft(tFront(v)))
+
+def makeLeft1():
+    return Piece("Left1",makeLeft(LFb1))
+
+def makeLeft2():
+    return Piece("Left2",makeLeft(LFb2))
+
+def makeBottom(v):
+    return Part.makeBox(OUTERDIM,OUTERDIM,THICKNESS,tLeft(tFront(tBottom(v))))
+
+def makeBottom1():
+    return Piece("Bottom1",makeBottom(LFb1))
+
+def makeBottom2():
+    return Piece("Bottom2",makeBottom(LFb2))
+
+def makeBack(v):
+    return Part.makeBox(DIM,THICKNESS,DIM,v)
+
+def makeBack1():
+    return Piece("Back1",makeBack(LBb1))
+
+def makeBack2():
+    return Piece("Back2",makeBack(LBb2))
+
+"""
+FourD pieces are 6 sided base faces.
+Where the turn is inside the intersection of that dimension of the two cubes,
+there is no flat side. Where it is outside of the intersection, there is one
+extra vertex to account for 3D edge.
+"""
+
+########## TOP SLANTS
+
+def makeTopFront():
+    def flairOuter(v):
+        return flairZ(1,flairX(-1,flairY(-1,v)))
+
+    topFrontL1 = tTop(tLeft(tFront(LFt1)))
+    topFrontL2 = tTop(tLeft(tFront(LFt2)))
+    topFrontR2 = tTop(tRight(tFront(RFt2)))
+    topFrontR1 = tTop(tRight(tFront(RFt1)))
+
+    topFront = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
+
+    frontLt = topFrontL1
+    frontRt = topFrontR1
+    frontLb = tBottom(frontLt)
+    frontRb = tBottom(frontRt)
+
+    front = get_face(frontLt,frontLb,frontRb,frontRt)
+
+    leftFt = topFrontL1
+    leftBt = tBack(leftFt)
+    leftBb = tBottom(leftBt)
+    leftFb = tFront(leftBb)
+
+    left = get_face(leftFt,leftBt,leftBb,leftFb)
+
+    bottomBL = tLeft(LFt1)
+    bottomFL = tFront(bottomBL)    
+    bottomBR = tRight(RFt1)
+    bottomFR = tFront(bottomBR)
+
+    bottom = get_face(bottomFL,bottomBL,bottomBR,bottomFR)
+
+    leftTopFL = topFrontL1
+    leftTopBL = tBack(leftTopFL)
+    leftTopFR = topFrontL2
+    leftTopBR = tBack(leftTopFR)
+
+    leftTop = get_face(leftTopFL,leftTopBL,leftTopBR,leftTopFR)
+
+    leftBackLb = tLeft(LFt1)
+    leftBackLt = tTop(leftBackLb)
+    leftBackRb = tLeft(LFt2)
+    leftBackRt = tTop(leftBackRb)
+
+    leftBack = get_face(leftBackLb,leftBackLt,leftBackRt,leftBackRb)
     
-    def front_side(self):
-        od = self.outer_dim
-        t = self.thickness
-        v1 = Base.Vector(t,0,t)
-        v2 = Base.Vector(od-t,0,t)
-        v3 = Base.Vector(od-t,0,od-t)
-        v4 = Base.Vector(t,0,od-t)
+    bottomBackL1 = tLeft(LFt1)
+    bottomBackL2 = tLeft(LFt2)
+    bottomBackR1 = tRight(RFt1)
+    bottomBackR2 = tRight(RFt2)
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(0,self.thickness,0))
+    bottomBack = get_face(bottomBackL1,bottomBackL2,bottomBackR2,bottomBackR1)
 
-    def back_side(self):
-        od = self.outer_dim
-        t = self.thickness
-        v1 = Base.Vector(t,od,t)
-        v2 = Base.Vector(od-t,od,t)
-        v3 = Base.Vector(od-t,od,od-t)
-        v4 = Base.Vector(t,od,od-t)
+    topRF = tFront(tLeft(tTop(LFt2)))
+    topRB = tBack(topRF)
+    topLF = tFront(tRight(tTop(RFt2)))
+    topLB = tBack(topLF)
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(0,-self.thickness,0))
+    top = get_face(topRF,topRB,topLB,topLF)
 
-    def top(self):
-        od = self.outer_dim
-        t = self.thickness
-        v1 = Base.Vector(0,0,od)
-        v2 = Base.Vector(0,od,od)
-        v3 = Base.Vector(od,od,od)
-        v4 = Base.Vector(od,0,od)
+    backLt = tTop(tLeft(LFt2))
+    backLb = tBottom(backLt)
+    backRt = tTop(tRight(RFt2))
+    backRb = tBottom(backRt)
 
-        face = get_face(v1,v2,v3,v4)
-        solid = face.extrude(Base.Vector(0,0,-self.thickness))
-        
-        # Cut out piece for connector
-        x = (self.offsetY / self.offsetZ) * t
-        
-        v1 = Base.Vector(0,0,od-t)
-        v2 = Base.Vector(0,0,od)
-        v3 = Base.Vector(0,x,od)
+    back = get_face(backLt,backLb,backRb,backRt)
 
-        face = get_face(v1,v2,v3)
-        cut_solid = face.extrude(Base.Vector(od,0,0))
+    rightBb = tRight(RFt2)
+    rightBt = tTop(rightBb)
+    rightFb = tFront(rightBb)
+    rightFt = tTop(rightFb)
 
-        return solid.cut(cut_solid)
+    right = get_face(rightBb,rightBt,rightFt,rightFb)
 
-
-    def show(self, doc):
-        add_shape(doc,"Cube1_Bottom",self.bottom())
-        add_shape(doc,"Cube1_Left",self.left_side())
-        add_shape(doc,"Cube1_Right",self.right_side())
-        add_shape(doc,"Cube1_Front",self.front_side())
-        add_shape(doc,"Cube1_Back",self.back_side())
-        add_shape(doc,"Cube1_Top",self.top())
-        doc.recompute()
-
-class Cube2():
-    def __init__(self,dim,thickness,offsetX,offsetY,offsetZ):
-        self.dim = dim
-        self.thickness = thickness
-        self.outer_dim = self.dim + (self.thickness / 2)
-        self.offsetX = offsetX
-        self.offsetY = offsetY
-        self.offsetZ = offsetZ
-
-    def bottom_out(self):
-        od = self.outer_dim
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-
-        vs = [
-          Base.Vector(od,oy,oz),
-          Base.Vector(od,od,oz),
-          Base.Vector(ox,od,oz),
-          Base.Vector(ox,od+oy,oz),
-          Base.Vector(ox+od,oy+od,oz),
-          Base.Vector(ox+od,oy,oz),
-        ]
-
-        face = get_face(*vs)
-        return face.extrude(Base.Vector(0,0,self.thickness))
-
-    def bottom_in(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-
-        vs = [
-          Base.Vector(ox,oy,oz),
-          Base.Vector(od-t,oy,oz),
-          Base.Vector(od-t,od-t,oz),
-          Base.Vector(ox,od-t,oz),
-        ]
-
-        face = get_face(*vs)
-        return face.extrude(Base.Vector(0,0,self.thickness))
-
-    def left_side_out(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-        
-        vs = [
-            Base.Vector(ox,od,od),
-            Base.Vector(ox,oy,od),
-            Base.Vector(ox,oy,od+oz-t),
-            Base.Vector(ox,od+oy,od+oz-t),
-            Base.Vector(ox,od+oy,oz+t),
-            Base.Vector(ox,od,oz+t),
-        ]
-
-        face = get_face(*vs)
-        return face.extrude(Base.Vector(self.thickness,0,0))
+    rightBottomBt = tRight(RFt2)
+    rightBottomFt = tFront(rightBottomBt)
+    rightBottomBb = tRight(RFt1)
+    rightBottomFb = tFront(rightBottomBb)
     
-    def left_side_in(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
+    rightBottom = get_face(rightBottomBt,rightBottomFt,rightBottomFb,rightBottomBb)
 
-        vs = [
-            Base.Vector(ox,oy,oz+t),
-            Base.Vector(ox,od-t,oz+t),
-            Base.Vector(ox,od-t,od-t),
-            Base.Vector(ox,oy,od-t),
-        ]
+    rightFrontBb = tFront(tRight(RFt2))
+    rightFrontBt = tTop(rightFrontBb)
+    rightFrontFb = tFront(tRight(RFt1))
+    rightFrontFt = tTop(rightFrontFb)
 
-        face = get_face(*vs)
-        return face.extrude(Base.Vector(self.thickness,0,0))
+    rightFront = get_face(rightFrontBb,rightFrontBt,rightFrontFt,rightFrontFb)
 
-    def right_side(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-        v1 = Base.Vector(od+ox,oy,t+oz)
-        v2 = Base.Vector(od+ox,od+oy,t+oz)
-        v3 = Base.Vector(od+ox,od+oy,od+oz-t)
-        v4 = Base.Vector(od+ox,oy,od+oz-t)
+    faces = [front,rightFront,rightBottom,
+             bottomBack,leftBack,leftTop,
+             topFront,right,back,
+             top,bottom]
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(-self.thickness,0,0))
+
+    return Piece.fromFaces("TopFront4",faces)
+
+def makeTopLeft():
+    def flairOuter(v):
+        return flairZ(1,flairX(-1,flairY(-1,v)))
+
+    topFrontL1 = tTop(tLeft(tFront(LFt1)))
+    topFrontL2 = tTop(tLeft(tFront(LFt2)))
+    topFrontR2 = tTop(tRight(tFront(RFt2)))
+    topFrontR1 = tTop(tRight(tFront(RFt1)))
+
+    topFront = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
+
+    frontLt = topFrontL1
+    frontRt = topFrontR1
+    frontLb = tBottom(frontLt)
+    frontRb = tBottom(frontRt)
+
+    front = get_face(frontLt,frontLb,frontRb,frontRt)
+
+    leftFt = topFrontL1
+    leftBt = tBack(leftFt)
+    leftBb = tBottom(leftBt)
+    leftFb = tFront(leftBb)
+
+    left = get_face(leftFt,leftBt,leftBb,leftFb)
+
+    bottomBL = tLeft(LFt1)
+    bottomFL = tFront(bottomBL)    
+    bottomBR = tRight(RFt1)
+    bottomFR = tFront(bottomBR)
+
+    bottom = get_face(bottomFL,bottomBL,bottomBR,bottomFR)
+
+    leftTopFL = topFrontL1
+    leftTopBL = tBack(leftTopFL)
+    leftTopFR = topFrontL2
+    leftTopBR = tBack(leftTopFR)
+
+    leftTop = get_face(leftTopFL,leftTopBL,leftTopBR,leftTopFR)
+
+    leftBackLb = tLeft(LFt1)
+    leftBackLt = tTop(leftBackLb)
+    leftBackRb = tLeft(LFt2)
+    leftBackRt = tTop(leftBackRb)
+
+    leftBack = get_face(leftBackLb,leftBackLt,leftBackRt,leftBackRb)
     
-    def front_side_out(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-        
-        vs = [
-            Base.Vector(od,oy,od),
-            Base.Vector(od,oy,oz+t),
-            Base.Vector(od+ox-t,oy,oz+t),
-            Base.Vector(od+ox-t,oy,od+oz-t),
-            Base.Vector(ox+t,oy,od+oz-t),
-            Base.Vector(ox+t,oy,od),
-        ]
+    bottomBackL1 = tLeft(LFt1)
+    bottomBackL2 = tLeft(LFt2)
+    bottomBackR1 = tRight(RFt1)
+    bottomBackR2 = tRight(RFt2)
 
-        face = get_face(*vs)
-        return face.extrude(Base.Vector(0,self.thickness,0))
+    bottomBack = get_face(bottomBackL1,bottomBackL2,bottomBackR2,bottomBackR1)
 
-    def top_front_cut_lower(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
+    topRF = tFront(tLeft(tTop(LFt2)))
+    topRB = tBack(topRF)
+    topLF = tFront(tRight(tTop(RFt2)))
+    topLB = tBack(topLF)
 
-        x = (self.offsetY / self.offsetZ) * t + oy
-        
-        v1 = Base.Vector(ox,oy,od+oz-t)
-        v2 = Base.Vector(ox,oy,od+oz-t-t)
-        v3 = Base.Vector(ox,x,od+oz-t)
+    top = get_face(topRF,topRB,topLB,topLF)
 
-        face = get_face(v1,v2,v3)
-        return face.extrude(Base.Vector(od,0,0))
+    backLt = tTop(tLeft(LFt2))
+    backLb = tBottom(backLt)
+    backRt = tTop(tRight(RFt2))
+    backRb = tBottom(backRt)
 
-    def front_side_in(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-        v1 = Base.Vector(ox+t,oy,oz+t)
-        v2 = Base.Vector(od-t,oy,oz+t)
-        v3 = Base.Vector(od-t,oy,od-t)
-        v4 = Base.Vector(ox+t,oy,od-t)
+    back = get_face(backLt,backLb,backRb,backRt)
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(0,self.thickness,0))        
+    rightBb = tRight(RFt2)
+    rightBt = tTop(rightBb)
+    rightFb = tFront(rightBb)
+    rightFt = tTop(rightFb)
 
-    def back_side(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-        v1 = Base.Vector(ox+t,od+oy,t+oz)
-        v2 = Base.Vector(od+ox-t,od+oy,t+oz)
-        v3 = Base.Vector(od+ox-t,od+oy,t+od+oz)
-        v4 = Base.Vector(ox+t,od+oy,t+od+oz)
+    right = get_face(rightBb,rightBt,rightFt,rightFb)
 
-        face = get_face(v1,v2,v3,v4)
-        return face.extrude(Base.Vector(0,-self.thickness,0))
+    rightBottomBt = tRight(RFt2)
+    rightBottomFt = tFront(rightBottomBt)
+    rightBottomBb = tRight(RFt1)
+    rightBottomFb = tFront(rightBottomBb)
+    
+    rightBottom = get_face(rightBottomBt,rightBottomFt,rightBottomFb,rightBottomBb)
 
-    def top(self):
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-        v1 = Base.Vector(ox,oy,od+oz)
-        v2 = Base.Vector(ox,od+oy,od+oz)
-        v3 = Base.Vector(od+ox,od+oy,od+oz)
-        v4 = Base.Vector(od+ox,oy,od+oz)
+    rightFrontBb = tFront(tRight(RFt2))
+    rightFrontBt = tTop(rightFrontBb)
+    rightFrontFb = tFront(tRight(RFt1))
+    rightFrontFt = tTop(rightFrontFb)
 
-        face = get_face(v1,v2,v3,v4)
-        solid = face.extrude(Base.Vector(0,0,-self.thickness))
+    rightFront = get_face(rightFrontBb,rightFrontBt,rightFrontFt,rightFrontFb)
 
-        # Cut out piece for connector
-        od = self.outer_dim
-        t = self.thickness
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
+    faces = [front,rightFront,rightBottom,
+             bottomBack,leftBack,leftTop,
+             topFront,right,back,
+             top,bottom]
 
-        x = (self.offsetY / self.offsetZ) * t + oy
-        
-        v1 = Base.Vector(ox,oy,od+oz)
-        v2 = Base.Vector(ox,oy,od+oz-t)
-        v3 = Base.Vector(ox,x,od+oz-t)
 
-        face = get_face(v1,v2,v3)
-        cut_solid = face.extrude(Base.Vector(od,0,0))
+    return Piece.fromFaces("TopFront4",faces)
 
-        return solid.cut(cut_solid)
-
-    def show(self, doc):
-        add_shape(doc,"Cube2_Bottom_Out",self.bottom_out())
-        add_shape(doc,"Cube2_Bottom_In",self.bottom_in())
-        add_shape(doc,"Cube2_Left_In",self.left_side_in())
-
-        add_shape(doc,"Cube2_Front_In",self.front_side_in())
-        add_shape(doc,"Cube2_Back",self.back_side())
-        add_shape(doc,"Cube2_Top",self.top())
-        front_out = self.front_side_out()
-        right = self.right_side()
-        left_out = self.left_side_out()
-
-        top_front_cut_lower = self.top_front_cut_lower()
-        
-        add_shape(doc,"Cube2_Front_Out",front_out.cut(top_front_cut_lower))
-        add_shape(doc,"Cube2_Right",right.cut(top_front_cut_lower))
-        add_shape(doc,"Cube2_Left_Out",left_out.cut(top_front_cut_lower))
-        doc.recompute()
-
-class TopConnectors():
-    """
-    These are the pieces that imitate the 4th dimensionality of the tesseract.
-    """
-    def __init__(self,dim,thickness,offsetX,offsetY,offsetZ):
-        self.dim = dim
-        self.thickness = thickness
-        self.outer_dim = self.dim + (self.thickness / 2)
-        self.offsetX = offsetX
-        self.offsetY = offsetY
-        self.offsetZ = offsetZ
-
-    def front(self):
-        od = self.outer_dim
-        ox = self.offsetX
-        oy = self.offsetY
-        oz = self.offsetZ
-        t = self.thickness
-
-        # Top of cube 1, inner space
-        vi1 = Base.Vector(0 + t,0 + t,od - t)
-        vi2 = Base.Vector(od - t,0 + t,od - t)
-        # Top of cube 2, inner space
-        vi3 = Base.Vector(ox + t,oy + t,od + oz - t)
-        vi4 = Base.Vector(od + ox - t,oy + t, od + oz - t)
-
-        # Top of cube 1, outer space
-        vo1 = Base.Vector(0, 0, od)
-        vo2 = Base.Vector(od, 0, od)
-        # Tope of cube 2, outer space
-        vo3 = Base.Vector(ox,oy,od + oz)
-        vo4 = Base.Vector(od + ox, oy, od + oz)
-
-        # Make the wires/faces
-
-        # Inner face
-        f1 = get_face(vi1,vi2,vi4,vi3)
-
-        # Outer face
-        f2 = get_face(vo1,vo2,vo4,vo3)
-
-        # Front and back
-        f3 = get_face(vi1,vi2,vo2,vo1)
-        f4 = get_face(vi3,vi4,vo4,vo3)
-
-        # Left and Right side
-        f5 = get_face(vi1,vo1,vo3,vi3)
-        f6 = get_face(vi2,vo2,vo4,vi4)
-
-        shell=Part.makeShell([f1,f2,f3,f4,f5,f6])
-        solid=Part.makeSolid(shell)
-
-        return solid
-
-    def show(self, doc):
-        add_shape(doc,"TopConnector_Front",self.front())
-        doc.recompute()
+#### MAIN ####
 
 if __name__ == "__main__":
     doc = FreeCAD.newDocument()
-    cube1 = Cube1(DIM,THICKNESS,OFFSET_X,OFFSET_Y,OFFSET_Z)
-    cube2 = Cube2(DIM,THICKNESS,OFFSET_X,OFFSET_Y,OFFSET_Z)
-    top_connectors = TopConnectors(DIM,THICKNESS,OFFSET_X,OFFSET_Y,OFFSET_Z)
-    cube1.show(doc)
-    cube2.show(doc)
-    top_connectors.show(doc)
+    
+    # d4s = [makeTopFront(),
+    #        makeTopLeft()]
+    d4s = [makeTopFront()]
+
+    cube1 = [makeTop1(),
+             makeBottom1(),
+             makeFront1(),
+             makeBack1(),
+             makeRight1(),
+             makeLeft1()]
+
+    cube2uncut = [makeTop2(),
+                  makeBottom2(),
+                  makeFront2(),
+                  makeBack2(),
+                  makeRight2(),
+                  makeLeft2()]
+
+    # do cutting
+    def cut(p,cutters):
+        cp = p
+        for c in cutters:
+            cp = cp.cut(c)
+        return cp
+
+    cube2 = map(lambda p: cut(p,cube1),cube2uncut)
+    cubes = map(lambda p: cut(p,d4s),cube1 + cube2)
+
+    # Add to GUI
+    for x in d4s + cubes:
+        add_shape(doc,x)
+    doc.recompute()
+
     FreeCADGui.SendMsgToActiveView("ViewFit")
     FreeCADGui.activeDocument().activeView().viewAxometric()
-
-
-# execfile("/home/rob/art/tesseract/tesseract.py")
-
-# Example of making solid out of vector->face->shell->solid
-         # Define six vetices for the shape
-         # v1 = FreeCAD.Vector(0,0,0)
-         # v2 = FreeCAD.Vector(fp.Length,0,0)
-         # v3 = FreeCAD.Vector(0,fp.Width,0)
-         # v4 = FreeCAD.Vector(fp.Length,fp.Width,0)
-         # v5 = FreeCAD.Vector(fp.Length/2,fp.Width/2,fp.Height/2)
-         # v6 = FreeCAD.Vector(fp.Length/2,fp.Width/2,-fp.Height/2)
-         
-         # # Make the wires/faces
-         # f1 = self.make_face(v1,v2,v5)
-         # f2 = self.make_face(v2,v4,v5)
-         # f3 = self.make_face(v4,v3,v5)
-         # f4 = self.make_face(v3,v1,v5)
-         # f5 = self.make_face(v2,v1,v6)
-         # f6 = self.make_face(v4,v2,v6)
-         # f7 = self.make_face(v3,v4,v6)
-         # f8 = self.make_face(v1,v3,v6)
-         # shell=Part.makeShell([f1,f2,f3,f4,f5,f6,f7,f8])
-         # solid=Part.makeSolid(shell)
-         # fp.Shape = solid
