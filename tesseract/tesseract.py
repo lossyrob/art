@@ -199,13 +199,10 @@ extra vertex to account for 3D edge.
 ########## TOP SLANTS
 
 def makeTopFront():
-    def flairOuter(v):
-        return flairZ(1,flairX(-1,flairY(-1,v)))
-
-    topFrontL1 = tTop(tLeft(tFront(LFt1)))
-    topFrontL2 = tTop(tLeft(tFront(LFt2)))
-    topFrontR2 = tTop(tRight(tFront(RFt2)))
-    topFrontR1 = tTop(tRight(tFront(RFt1)))
+    topFrontL1 = tTop(tFront(LFt1))
+    topFrontL2 = tTop(tFront(LFt2))
+    topFrontR2 = tTop(tFront(RFt2))
+    topFrontR1 = tTop(tFront(RFt1))
 
     topFront = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
 
@@ -223,9 +220,9 @@ def makeTopFront():
 
     left = get_face(leftFt,leftBt,leftBb,leftFb)
 
-    bottomBL = tLeft(LFt1)
+    bottomBL = LFt1
     bottomFL = tFront(bottomBL)    
-    bottomBR = tRight(RFt1)
+    bottomBR = RFt1
     bottomFR = tFront(bottomBR)
 
     bottom = get_face(bottomFL,bottomBL,bottomBR,bottomFR)
@@ -237,51 +234,51 @@ def makeTopFront():
 
     leftTop = get_face(leftTopFL,leftTopBL,leftTopBR,leftTopFR)
 
-    leftBackLb = tLeft(LFt1)
+    leftBackLb = LFt1
     leftBackLt = tTop(leftBackLb)
-    leftBackRb = tLeft(LFt2)
+    leftBackRb = LFt2
     leftBackRt = tTop(leftBackRb)
 
     leftBack = get_face(leftBackLb,leftBackLt,leftBackRt,leftBackRb)
     
-    bottomBackL1 = tLeft(LFt1)
-    bottomBackL2 = tLeft(LFt2)
-    bottomBackR1 = tRight(RFt1)
-    bottomBackR2 = tRight(RFt2)
+    bottomBackL1 = LFt1
+    bottomBackL2 = LFt2
+    bottomBackR1 = RFt1
+    bottomBackR2 = RFt2
 
-    bottomBack = get_face(bottomBackL1,bottomBackL2,bottomBackR2,bottomBackR1)
+    bottomBack = get_face(bottomBackR1,bottomBackL1,bottomBackL2,bottomBackR2)
 
-    topRF = tFront(tLeft(tTop(LFt2)))
+    topRF = tFront(tTop(LFt2))
     topRB = tBack(topRF)
-    topLF = tFront(tRight(tTop(RFt2)))
+    topLF = tFront(tTop(RFt2))
     topLB = tBack(topLF)
 
     top = get_face(topRF,topRB,topLB,topLF)
 
-    backLt = tTop(tLeft(LFt2))
+    backLt = tTop(LFt2)
     backLb = tBottom(backLt)
-    backRt = tTop(tRight(RFt2))
+    backRt = tTop(RFt2)
     backRb = tBottom(backRt)
 
     back = get_face(backLt,backLb,backRb,backRt)
 
-    rightBb = tRight(RFt2)
+    rightBb = RFt2
     rightBt = tTop(rightBb)
     rightFb = tFront(rightBb)
     rightFt = tTop(rightFb)
 
     right = get_face(rightBb,rightBt,rightFt,rightFb)
 
-    rightBottomBt = tRight(RFt2)
+    rightBottomBt = RFt2
     rightBottomFt = tFront(rightBottomBt)
-    rightBottomBb = tRight(RFt1)
+    rightBottomBb = RFt1
     rightBottomFb = tFront(rightBottomBb)
     
     rightBottom = get_face(rightBottomBt,rightBottomFt,rightBottomFb,rightBottomBb)
 
-    rightFrontBb = tFront(tRight(RFt2))
+    rightFrontBb = tFront(RFt2)
     rightFrontBt = tTop(rightFrontBb)
-    rightFrontFb = tFront(tRight(RFt1))
+    rightFrontFb = tFront(RFt1)
     rightFrontFt = tTop(rightFrontFb)
 
     rightFront = get_face(rightFrontBb,rightFrontBt,rightFrontFt,rightFrontFb)
@@ -291,17 +288,13 @@ def makeTopFront():
              topFront,right,back,
              top,bottom]
 
-
-    return Piece.fromFaces("TopFront4",faces)
+    return Piece.fromFaces("TopFront",faces)
 
 def makeTopLeft():
-    def flairOuter(v):
-        return flairZ(1,flairX(-1,flairY(-1,v)))
-
-    topFrontL1 = tTop(tLeft(tFront(LFt1)))
-    topFrontL2 = tTop(tLeft(tFront(LFt2)))
-    topFrontR2 = tTop(tRight(tFront(RFt2)))
-    topFrontR1 = tTop(tRight(tFront(RFt1)))
+    topFrontL1 = tTop(tFront(LFt1))
+    topFrontL2 = tTop(tFront(LFt2))
+    topFrontR2 = tTop(tFront(RFt2))
+    topFrontR1 = tTop(tFront(RFt1))
 
     topFront = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
 
@@ -319,9 +312,9 @@ def makeTopLeft():
 
     left = get_face(leftFt,leftBt,leftBb,leftFb)
 
-    bottomBL = tLeft(LFt1)
+    bottomBL = LFt1
     bottomFL = tFront(bottomBL)    
-    bottomBR = tRight(RFt1)
+    bottomBR = RFt1
     bottomFR = tFront(bottomBR)
 
     bottom = get_face(bottomFL,bottomBL,bottomBR,bottomFR)
@@ -333,51 +326,51 @@ def makeTopLeft():
 
     leftTop = get_face(leftTopFL,leftTopBL,leftTopBR,leftTopFR)
 
-    leftBackLb = tLeft(LFt1)
+    leftBackLb = LFt1
     leftBackLt = tTop(leftBackLb)
-    leftBackRb = tLeft(LFt2)
+    leftBackRb = LFt2
     leftBackRt = tTop(leftBackRb)
 
     leftBack = get_face(leftBackLb,leftBackLt,leftBackRt,leftBackRb)
     
-    bottomBackL1 = tLeft(LFt1)
-    bottomBackL2 = tLeft(LFt2)
-    bottomBackR1 = tRight(RFt1)
-    bottomBackR2 = tRight(RFt2)
+    bottomBackL1 = LFt1
+    bottomBackL2 = LFt2
+    bottomBackR1 = RFt1
+    bottomBackR2 = RFt2
 
     bottomBack = get_face(bottomBackL1,bottomBackL2,bottomBackR2,bottomBackR1)
 
-    topRF = tFront(tLeft(tTop(LFt2)))
+    topRF = tFront(tTop(LFt2))
     topRB = tBack(topRF)
-    topLF = tFront(tRight(tTop(RFt2)))
+    topLF = tFront(tTop(RFt2))
     topLB = tBack(topLF)
 
     top = get_face(topRF,topRB,topLB,topLF)
 
-    backLt = tTop(tLeft(LFt2))
+    backLt = tTop(LFt2)
     backLb = tBottom(backLt)
-    backRt = tTop(tRight(RFt2))
+    backRt = tTop(RFt2)
     backRb = tBottom(backRt)
 
     back = get_face(backLt,backLb,backRb,backRt)
 
-    rightBb = tRight(RFt2)
+    rightBb = RFt2
     rightBt = tTop(rightBb)
     rightFb = tFront(rightBb)
     rightFt = tTop(rightFb)
 
     right = get_face(rightBb,rightBt,rightFt,rightFb)
 
-    rightBottomBt = tRight(RFt2)
+    rightBottomBt = RFt2
     rightBottomFt = tFront(rightBottomBt)
-    rightBottomBb = tRight(RFt1)
+    rightBottomBb = RFt1
     rightBottomFb = tFront(rightBottomBb)
     
     rightBottom = get_face(rightBottomBt,rightBottomFt,rightBottomFb,rightBottomBb)
 
-    rightFrontBb = tFront(tRight(RFt2))
+    rightFrontBb = tFront(RFt2)
     rightFrontBt = tTop(rightFrontBb)
-    rightFrontFb = tFront(tRight(RFt1))
+    rightFrontFb = tFront(RFt1)
     rightFrontFt = tTop(rightFrontFb)
 
     rightFront = get_face(rightFrontBb,rightFrontBt,rightFrontFt,rightFrontFb)
@@ -422,6 +415,7 @@ if __name__ == "__main__":
 
     cube2 = map(lambda p: cut(p,cube1),cube2uncut)
     cubes = map(lambda p: cut(p,d4s),cube1 + cube2)
+#    cubes = cube1+cube2
 
     # Add to GUI
     for x in d4s + cubes:
