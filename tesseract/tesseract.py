@@ -58,6 +58,61 @@ RBt2 = Base.Vector(OFFSET_X + DIM,OFFSET_Y + DIM,OFFSET_Z + DIM)
 
 ########## UTIL
 
+# Develop a system that takes a set of faces,
+# and some indication of their directionality.
+# Create a solid that is a makeBox call that is essentially
+# the convex 3D hull of the given point set.
+# Then iterate through each face, creating an extrusion. Oh.
+# I might be able to make an extrusion with angle. Let me check.
+#...
+# I can, but, I don't think that solves the problem in a more elegant way.
+# I want an API function that takes a list of faces, with possibly
+# information about their direction of outward vs inward, 
+# and returns me a solid of those faces, correctly able to cut other solids.
+# FreeCAD should already have this? I think I've sufficiently checked.
+# So create a set of makeBox's for the face and direction. Then create the solid
+# that is the convex hull. Then cut that solid by each solid in the face\direction
+# pair method.
+
+class SolidFace():
+    def __init__(self,face,outVector):
+        self.face = face
+        self.outVector = outVector
+
+def get_face(*vs):
+    """
+    Takes a sequence of vectors and returns a face
+    """
+    s = vs[0:-1]
+    e = vs[1:]
+    l = []
+    for i in range(0,len(s)):
+        l.append(Part.Line(s[i],e[i]))
+
+    l.append(Part.Line(vs[-1],vs[0]))
+
+    shape = Part.Shape(l)
+    wire = Part.Wire(shape.Edges)
+    return Part.makeFilledFace(shape.Edges)
+
+def makeSolid(solidFaces):
+    vertices = [v for v in face.Vertexes for face in map(lambda x: x.face, solidFaces)]
+
+    head = vertices[0]
+    xmin = head.x
+    xmax = head.x
+    ymin = head.y
+    ymax = head.y
+    zmin = head.z
+    zmax = head.z
+    for v in vertices[1:]:
+        xmin = math.min(v.x,xmin)
+        ymin = math.min(v.y,ymin)
+        xmax = math.max(v.x,xmax)
+        ymax = math.max(v.y,ymax)
+
+    
+        
 class Piece():
     @staticmethod
     def fromFaces(name,faces):
@@ -111,21 +166,6 @@ def add_shape(doc,piece):
     part.Shape = piece.shape
     FreeCADGui.activeDocument().getObject(piece.name).Transparency = 75
 
-def get_face(*vs):
-    """
-    Takes a sequence of vectors and returns a face
-    """
-    s = vs[0:-1]
-    e = vs[1:]
-    l = []
-    for i in range(0,len(s)):
-        l.append(Part.Line(s[i],e[i]))
-
-    l.append(Part.Line(vs[-1],vs[0]))
-
-    shape = Part.Shape(l)
-    wire = Part.Wire(shape.Edges)
-    return Part.makeFilledFace(shape.Edges)
 
 ########## CUBES
 
