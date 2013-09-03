@@ -240,6 +240,24 @@ def add_shape(doc,piece):
     part.Shape = piece.shape
     FreeCADGui.activeDocument().getObject(piece.name).Transparency = 75
 
+#For creating SolidFace outPoint
+def pushLeft(v):
+    return pushX(-DIM,v)
+
+def pushRight(v):
+    return pushX(DIM,v)
+
+def pushFront(v):
+    return pushY(-DIM,v)
+
+def pushBack(v):
+    return pushY(DIM,v)
+
+def pushBottom(v):
+    return pushZ(-DIM,v)
+
+def pushTop(v):
+    return pushZ(DIM,v)
 
 ########## CUBES
 
@@ -318,9 +336,8 @@ def makeTopFront():
     topFrontR2 = tTop(tFront(RFt2))
     topFrontR1 = tTop(tFront(RFt1))
 
-    face = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
-    topFront = SolidFace(face,
-                         pushZ(DIM,topFrontL1))
+    topFront = SolidFace(get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1),
+                         pushTop(topFrontL1))
 
     frontLt = topFrontL1
     frontRt = topFrontR1
@@ -328,7 +345,7 @@ def makeTopFront():
     frontRb = tBottom(frontRt)
 
     front = SolidFace(get_face(frontLt,frontLb,frontRb,frontRt),
-                      pushY(-DIM,frontLt))
+                      pushFront(frontLt))
 
     leftFt = topFrontL1
     leftBt = tBack(leftFt)
@@ -336,15 +353,15 @@ def makeTopFront():
     leftFb = tFront(leftBb)
 
     left = SolidFace(get_face(leftFt,leftBt,leftBb,leftFb),
-                     pushX(-DIM,leftFt))
+                     pushLeft(leftFt))
 
     bottomBL = LFt1
-    bottomFL = tFront(bottomBL)    
+    bottomFL = tFront(bottomBL)
     bottomBR = RFt1
     bottomFR = tFront(bottomBR)
 
     bottom = SolidFace(get_face(bottomFL,bottomBL,bottomBR,bottomFR),
-                       pushZ(-DIM,bottomBL))
+                       pushBottom(bottomBL))
 
     leftTopFL = topFrontL1
     leftTopBL = tBack(leftTopFL)
@@ -352,7 +369,7 @@ def makeTopFront():
     leftTopBR = tBack(leftTopFR)
 
     leftTop = SolidFace(get_face(leftTopFL,leftTopBL,leftTopBR,leftTopFR),
-                        pushZ(DIM,pushX(-DIM,leftTopFL)))
+                        pushLeft(pushTop(leftTopFL)))
 
     leftBackLb = LFt1
     leftBackLt = tTop(leftBackLb)
@@ -360,7 +377,7 @@ def makeTopFront():
     leftBackRt = tTop(leftBackRb)
 
     leftBack = SolidFace(get_face(leftBackLb,leftBackLt,leftBackRt,leftBackRb),
-                         pushY(DIM,pushX(-DIM,leftBackLb)))
+                         pushLeft(pushBack(leftBackLb)))
                          
     bottomBackL1 = LFt1
     bottomBackL2 = LFt2
@@ -368,7 +385,7 @@ def makeTopFront():
     bottomBackR2 = RFt2
 
     bottomBack = SolidFace(get_face(bottomBackR1,bottomBackL1,bottomBackL2,bottomBackR2),
-                           pushY(DIM,pushZ(-DIM,bottomBackL1)))
+                           pushBottom(pushBack(bottomBackL1)))
 
     topRF = tFront(tTop(LFt2))
     topRB = tBack(topRF)
@@ -376,7 +393,7 @@ def makeTopFront():
     topLB = tBack(topLF)
 
     top = SolidFace(get_face(topRF,topRB,topLB,topLF),
-                pushZ(DIM,topRF))
+                    pushTop(topRF))
 
     backLt = tTop(LFt2)
     backLb = tBottom(backLt)
@@ -384,7 +401,7 @@ def makeTopFront():
     backRb = tBottom(backRt)
 
     back = SolidFace(get_face(backLt,backLb,backRb,backRt),
-                     pushY(DIM,backLt))
+                     pushBack(backLt))
 
     rightBb = RFt2
     rightBt = tTop(rightBb)
@@ -392,7 +409,7 @@ def makeTopFront():
     rightFt = tTop(rightFb)
 
     right = SolidFace(get_face(rightBb,rightBt,rightFt,rightFb),
-                      pushX(DIM,rightBb))
+                      pushRight(rightBb))
 
     rightBottomBt = RFt2
     rightBottomFt = tFront(rightBottomBt)
@@ -400,7 +417,7 @@ def makeTopFront():
     rightBottomFb = tFront(rightBottomBb)
     
     rightBottom = SolidFace(get_face(rightBottomBt,rightBottomFt,rightBottomFb,rightBottomBb),
-                            pushZ(-DIM,pushX(DIM,rightBottomBt)))
+                            pushRight(pushBottom(rightBottomBt)))
 
     rightFrontBb = tFront(RFt2)
     rightFrontBt = tTop(rightFrontBb)
@@ -408,7 +425,7 @@ def makeTopFront():
     rightFrontFt = tTop(rightFrontFb)
 
     rightFront = SolidFace(get_face(rightFrontBb,rightFrontBt,rightFrontFt,rightFrontFb),
-                           pushY(-DIM,pushX(DIM,rightFrontBb)))
+                           pushRight(pushFront(rightFrontBb)))
 
     solidFaces = [front,rightFront,rightBottom,
              bottomBack,leftBack,leftTop,
@@ -423,14 +440,15 @@ def makeTopLeft():
     topFrontR2 = tTop(tFront(RFt2))
     topFrontR1 = tTop(tFront(RFt1))
 
-    topFront = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
+    topFront = SolidFace(get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1),
+                         pushY(-DIM,pushZ(DIM,topFrontL1)))
 
     frontLt = topFrontL1
     frontRt = topFrontR1
     frontLb = tBottom(frontLt)
     frontRb = tBottom(frontRt)
 
-    front = get_face(frontLt,frontLb,frontRb,frontRt)
+#    front = SolidFace(get_face(frontLt,frontLb,frontRb,frontRt),
 
     leftFt = topFrontL1
     leftBt = tBack(leftFt)
