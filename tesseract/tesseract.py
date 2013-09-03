@@ -74,11 +74,6 @@ RBt2 = Base.Vector(OFFSET_X + DIM,OFFSET_Y + DIM,OFFSET_Z + DIM)
 # that is the convex hull. Then cut that solid by each solid in the face\direction
 # pair method.
 
-class SolidFace():
-    def __init__(self,face,outVector):
-        self.face = face
-        self.outVector = outVector
-
 def get_face(*vs):
     """
     Takes a sequence of vectors and returns a face
@@ -92,28 +87,98 @@ def get_face(*vs):
     l.append(Part.Line(vs[-1],vs[0]))
 
     shape = Part.Shape(l)
-    wire = Part.Wire(shape.Edges)
     return Part.makeFilledFace(shape.Edges)
 
-def makeSolid(solidFaces):
-    vertices = [v for v in face.Vertexes for face in map(lambda x: x.face, solidFaces)]
+def expand_face(face,d):
+    """
+    Expands a face along it's plane so that the centers are the same, and
+    the min edge length is d.
+    """
+    minLength = reduce(lambda x,y: min(x,y),
+                       map(lambda e: e.Length, face.Edges))
+    factor = d / minLength
+    center = face.CenterOfMass
 
-    head = vertices[0]
-    xmin = head.x
-    xmax = head.x
-    ymin = head.y
-    ymax = head.y
-    zmin = head.z
-    zmax = head.z
-    for v in vertices[1:]:
-        xmin = math.min(v.x,xmin)
-        ymin = math.min(v.y,ymin)
-        xmax = math.max(v.x,xmax)
-        ymax = math.max(v.y,ymax)
-
+    def scaleV(v):
+        return (v - center).scale(factor,factor,factor) + center
     
+    newLines = []        
+
+    for e in face.Edges:
+        vs = map(lambda v: v.Point, e.Vertexes)
+        newLines.append(Part.Line(scaleV(vs[0]),scaleV(vs[1])))
+
+    shape = Part.Shape(newLines)
+    return Part.makeFilledFace(shape.Edges)
         
+class SolidFace():
+    """
+    Takes a face, and a point that defines the outward direction of the face.
+    The outPoint does not have to be perpendicular to the plane of the face 
+    (a normal vector); it only has to be on one side or the other of the two 3D 
+    spaces cut by the face plane. The direction of the outward normal vector 
+     will be calculated by the outPoint.
+    """
+    def __init__(self,face,outPoint):
+        self.face = face
+        self.outPoint = outPoint
+
+        # Calculate the normal vector
+        def reduceVerts(v1,v2):
+            return Base.Vector(v1.x - v2.x, v1.y - v2.y, v1.z - v2.z)
+        vertices = map(lambda e: map(lambda v: v.Point, e.Vertexes), face.Edges[:2])
+        planeVectors = map(lambda vs: reduce(reduceVerts, vs), vertices)
+        norm = planeVectors[0].cross(planeVectors[1]).normalize()
+
+        # Flip in the direction of outPoint if necessary.
+        # Bug? projectToPlane returns and edits vector state
+        outPointCopy = Base.Vector(outPoint.x,outPoint.y,outPoint.z)
+        projected = outPointCopy.projectToPlane(planeVectors[0],norm)
+        angle = norm.getAngle(outPoint - projected)
+        if angle > 0.0001:
+            norm = norm.multiply(-1)
+
+        self.norm = norm
+
+class Solid():
+    def __init__(self,solidFaces):
+        vertices = [v.Point for face in map(lambda x: x.face, solidFaces) for v in face.Vertexes]
+
+        # Get min solid containing all faces.
+        head = vertices[0]
+        xmin = head.x
+        xmax = head.x
+        ymin = head.y
+        ymax = head.y
+        zmin = head.z
+        zmax = head.z
+        for v in vertices[1:]:
+            xmin = min(v.x,xmin)
+            ymin = min(v.y,ymin)
+            zmin = min(v.z,zmin)
+            xmax = max(v.x,xmax)
+            ymax = max(v.y,ymax)
+            zmax = max(v.z,zmax)
+
+        xdim = xmax - xmin
+        ydim = ymax - ymin
+        zdim = zmax - zmin
+        box = Part.makeBox(xdim,ydim,zdim,Base.Vector(xmin,ymin,zmin))
+        maxDim = max(xdim,max(ydim,zdim))
+
+        # Now we cut the initial box by each face's outward side.
+        for solidFace in solidFaces:
+            scaledFace = expand_face(solidFace.face,maxDim)
+            s = scaledFace.extrude(solidFace.norm.multiply(maxDim))
+            box = box.cut(s)
+
+        self.shape = box
+            
 class Piece():
+    @staticmethod
+    def fromSolid(name,solid):
+        return Piece(name,solid.shape)
+
     @staticmethod
     def fromFaces(name,faces):
         shell = Part.makeShell(faces)
@@ -131,17 +196,26 @@ class Piece():
     def copy(self):
         return Piece(self.name, self.shape.copy())
 
+def pushX(d,v):
+    return Base.Vector(v.x + d, v.y, v.z)
+
+def pushY(d,v):
+    return Base.Vector(v.x, v.y + d, v.z)
+
+def pushZ(d,v):
+    return Base.Vector(v.x, v.y, v.z + d)
+
 def tX(d,v):
     o = d * THICKNESS
-    return Base.Vector(v.x + o, v.y, v.z)
+    return pushX(o,v)
 
 def tY(d,v):
     o = d * THICKNESS
-    return Base.Vector(v.x, v.y + o, v.z)
+    return pushY(o,v)
 
 def tZ(d,v):
     o = d * THICKNESS
-    return Base.Vector(v.x, v.y, v.z + o)
+    return pushZ(o,v)
 
 def tFront(v):
     return tY(-1,v)
@@ -244,91 +318,104 @@ def makeTopFront():
     topFrontR2 = tTop(tFront(RFt2))
     topFrontR1 = tTop(tFront(RFt1))
 
-    topFront = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
+    face = get_face(topFrontL1,topFrontL2,topFrontR2,topFrontR1)
+    topFront = SolidFace(face,
+                         pushZ(DIM,topFrontL1))
 
     frontLt = topFrontL1
     frontRt = topFrontR1
     frontLb = tBottom(frontLt)
     frontRb = tBottom(frontRt)
 
-    front = get_face(frontLt,frontLb,frontRb,frontRt)
+    front = SolidFace(get_face(frontLt,frontLb,frontRb,frontRt),
+                      pushY(-DIM,frontLt))
 
     leftFt = topFrontL1
     leftBt = tBack(leftFt)
     leftBb = tBottom(leftBt)
     leftFb = tFront(leftBb)
 
-    left = get_face(leftFt,leftBt,leftBb,leftFb)
+    left = SolidFace(get_face(leftFt,leftBt,leftBb,leftFb),
+                     pushX(-DIM,leftFt))
 
     bottomBL = LFt1
     bottomFL = tFront(bottomBL)    
     bottomBR = RFt1
     bottomFR = tFront(bottomBR)
 
-    bottom = get_face(bottomFL,bottomBL,bottomBR,bottomFR)
+    bottom = SolidFace(get_face(bottomFL,bottomBL,bottomBR,bottomFR),
+                       pushZ(-DIM,bottomBL))
 
     leftTopFL = topFrontL1
     leftTopBL = tBack(leftTopFL)
     leftTopFR = topFrontL2
     leftTopBR = tBack(leftTopFR)
 
-    leftTop = get_face(leftTopFL,leftTopBL,leftTopBR,leftTopFR)
+    leftTop = SolidFace(get_face(leftTopFL,leftTopBL,leftTopBR,leftTopFR),
+                        pushZ(DIM,pushX(-DIM,leftTopFL)))
 
     leftBackLb = LFt1
     leftBackLt = tTop(leftBackLb)
     leftBackRb = LFt2
     leftBackRt = tTop(leftBackRb)
 
-    leftBack = get_face(leftBackLb,leftBackLt,leftBackRt,leftBackRb)
-    
+    leftBack = SolidFace(get_face(leftBackLb,leftBackLt,leftBackRt,leftBackRb),
+                         pushY(DIM,pushX(-DIM,leftBackLb)))
+                         
     bottomBackL1 = LFt1
     bottomBackL2 = LFt2
     bottomBackR1 = RFt1
     bottomBackR2 = RFt2
 
-    bottomBack = get_face(bottomBackR1,bottomBackL1,bottomBackL2,bottomBackR2)
+    bottomBack = SolidFace(get_face(bottomBackR1,bottomBackL1,bottomBackL2,bottomBackR2),
+                           pushY(DIM,pushZ(-DIM,bottomBackL1)))
 
     topRF = tFront(tTop(LFt2))
     topRB = tBack(topRF)
     topLF = tFront(tTop(RFt2))
     topLB = tBack(topLF)
 
-    top = get_face(topRF,topRB,topLB,topLF)
+    top = SolidFace(get_face(topRF,topRB,topLB,topLF),
+                pushZ(DIM,topRF))
 
     backLt = tTop(LFt2)
     backLb = tBottom(backLt)
     backRt = tTop(RFt2)
     backRb = tBottom(backRt)
 
-    back = get_face(backLt,backLb,backRb,backRt)
+    back = SolidFace(get_face(backLt,backLb,backRb,backRt),
+                     pushY(DIM,backLt))
 
     rightBb = RFt2
     rightBt = tTop(rightBb)
     rightFb = tFront(rightBb)
     rightFt = tTop(rightFb)
 
-    right = get_face(rightBb,rightBt,rightFt,rightFb)
+    right = SolidFace(get_face(rightBb,rightBt,rightFt,rightFb),
+                      pushX(DIM,rightBb))
 
     rightBottomBt = RFt2
     rightBottomFt = tFront(rightBottomBt)
     rightBottomBb = RFt1
     rightBottomFb = tFront(rightBottomBb)
     
-    rightBottom = get_face(rightBottomBt,rightBottomFt,rightBottomFb,rightBottomBb)
+    rightBottom = SolidFace(get_face(rightBottomBt,rightBottomFt,rightBottomFb,rightBottomBb),
+                            pushZ(-DIM,pushX(DIM,rightBottomBt)))
 
     rightFrontBb = tFront(RFt2)
     rightFrontBt = tTop(rightFrontBb)
     rightFrontFb = tFront(RFt1)
     rightFrontFt = tTop(rightFrontFb)
 
-    rightFront = get_face(rightFrontBb,rightFrontBt,rightFrontFt,rightFrontFb)
+    rightFront = SolidFace(get_face(rightFrontBb,rightFrontBt,rightFrontFt,rightFrontFb),
+                           pushY(-DIM,pushX(DIM,rightFrontBb)))
 
-    faces = [front,rightFront,rightBottom,
+    solidFaces = [front,rightFront,rightBottom,
              bottomBack,leftBack,leftTop,
              topFront,right,back,
              top,bottom]
 
-    return Piece.fromFaces("TopFront",faces)
+    return Piece.fromSolid("TopFront",Solid(solidFaces))
 
 def makeTopLeft():
     topFrontL1 = tTop(tFront(LFt1))
@@ -425,6 +512,14 @@ def makeTopLeft():
 
 #### MAIN ####
 
+# if __name__ == "__main__":
+#     doc = FreeCAD.newDocument()
+#     tf = makeTopFront()
+#     add_shape(doc,tf)
+#     FreeCADGui.SendMsgToActiveView("ViewFit")
+#     FreeCADGui.activeDocument().activeView().viewAxometric()
+
+# else:
 if __name__ == "__main__":
     doc = FreeCAD.newDocument()
     
@@ -455,7 +550,6 @@ if __name__ == "__main__":
 
     cube2 = map(lambda p: cut(p,cube1),cube2uncut)
     cubes = map(lambda p: cut(p,d4s),cube1 + cube2)
-#    cubes = cube1+cube2
 
     # Add to GUI
     for x in d4s + cubes:
